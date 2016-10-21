@@ -4,6 +4,7 @@ import time
 import datetime
 
 ID_COUNT = wx.NewId()
+ID_PAUSE = wx.NewId()
 myEVT_COUNT = wx.NewEventType()
 EVT_COUNT = wx.PyEventBinder(myEVT_COUNT, 1)
 
@@ -32,20 +33,32 @@ class CountingPanel(wx.Panel):
 
         self.__DoLayout()
 
-        self.Bind(wx.EVT_BUTTON, self.OnButton)
+        self.Bind(wx.EVT_BUTTON, self.OnPauseButton, self.pauseButton)
+        self.Bind(wx.EVT_BUTTON, self.OnButton, self.startButton)
         self.Bind(EVT_COUNT, self.OnCount)
 
 
     def __DoLayout(self):
         sizer = wx.BoxSizer(wx.VERTICAL)
-        button = wx.Button(self, ID_COUNT, "Pomodoro Counter")
-        sizer.AddMany([(button, 0, wx.ALIGN_CENTER), ((15,15), 0), (self._counter, 0, wx.ALIGN_CENTER)])
+        self.startButton = wx.Button(self, ID_COUNT, "Start")
+        self.pauseButton = wx.Button(self, ID_PAUSE, "Pause")
+        sizer.AddMany([(self.startButton, 0, wx.ALIGN_CENTER), ((15,15), 0), (self._counter, 0, wx.ALIGN_CENTER), ((15,15), 0), (self.pauseButton, 0, wx.ALIGN_CENTER)])
         self.SetSizer(sizer)
 
 
     def OnButton(self, evt):
         worker = CountingThread(self, 1499)
-        worker.start()
+        self._worker = worker
+        self._worker.start()
+        self.startButton.Disable()
+
+
+    def OnPauseButton(self, evt):
+        self._worker.paused = not self._worker.paused
+        if self._worker.paused:
+            self.pauseButton.SetLabel("Resume")
+        else:
+            self.pauseButton.SetLabel("Pause")
 
 
     def OnCount(self, evt):
@@ -73,18 +86,20 @@ class CountingThread(threading.Thread):
         threading.Thread.__init__(self)
         self._parent = parent
         self._value = value
+        self.paused = False
 
 
     def run(self):
         while True:
-            time.sleep(1)
-            mins, secs = divmod(self._value, 60)
-            time_string = '{:02d}:{:02d}'.format(mins, secs)
-            print time_string
-            self.time_string = time_string
-            self._value -= 1
-            evt = CountEvent(myEVT_COUNT, -1, self._value, self.time_string)
-            wx.PostEvent(self._parent, evt)
+            if not self.paused:
+                time.sleep(1)
+                mins, secs = divmod(self._value, 60)
+                time_string = '{:02d}:{:02d}'.format(mins, secs)
+                print time_string
+                self.time_string = time_string
+                self._value -= 1
+                evt = CountEvent(myEVT_COUNT, -1, self._value, self.time_string)
+                wx.PostEvent(self._parent, evt)
 
 
 if __name__ == '__main__':
