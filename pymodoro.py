@@ -28,6 +28,8 @@ class CountingPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
 
+        self.POMODORO_DURATION = 2
+
         self._counter = wx.StaticText(self, label="25:00")
         self._counter.SetFont(wx.Font(16, wx.MODERN, wx.NORMAL, wx.NORMAL))
 
@@ -39,15 +41,15 @@ class CountingPanel(wx.Panel):
 
 
     def __DoLayout(self):
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        self._sizer = wx.GridSizer(3, 1, 30)
         self.startButton = wx.Button(self, ID_COUNT, "Start")
         self.pauseButton = wx.Button(self, ID_PAUSE, "Pause")
-        sizer.AddMany([(self.startButton, 0, wx.ALIGN_CENTER), ((15,15), 0), (self._counter, 0, wx.ALIGN_CENTER), ((15,15), 0), (self.pauseButton, 0, wx.ALIGN_CENTER)])
-        self.SetSizer(sizer)
+        self._sizer.AddMany([(self.startButton, 0, wx.ALIGN_CENTER), (self._counter, 0, wx.ALIGN_CENTER), (self.pauseButton, 0, wx.ALIGN_CENTER)])
+        self.SetSizer(self._sizer)
 
 
     def OnButton(self, evt):
-        worker = CountingThread(self, 1499)
+        worker = CountingThread(self, self.POMODORO_DURATION)
         self._worker = worker
         self._worker.start()
         self.startButton.Disable()
@@ -64,6 +66,9 @@ class CountingPanel(wx.Panel):
     def OnCount(self, evt):
         val = evt.GetTimeString()
         self._counter.SetLabel(unicode(val))
+        if val == "Pomodoro Finished!":
+            print(self._sizer.GetItem(1).GetPosition())
+            self._sizer.GetItem(1).SetDimension((37, 67), (300,300))
 
 
 class CountEvent(wx.PyCommandEvent):
@@ -90,16 +95,17 @@ class CountingThread(threading.Thread):
 
 
     def run(self):
-        while True:
+        while self._value > -1:
             if not self.paused:
                 time.sleep(1)
                 mins, secs = divmod(self._value, 60)
                 time_string = '{:02d}:{:02d}'.format(mins, secs)
-                print time_string
                 self.time_string = time_string
                 self._value -= 1
                 evt = CountEvent(myEVT_COUNT, -1, self._value, self.time_string)
                 wx.PostEvent(self._parent, evt)
+        evt = CountEvent(myEVT_COUNT, -1, self._value, "Pomodoro Finished!")
+        wx.PostEvent(self._parent, evt)
 
 
 if __name__ == '__main__':
