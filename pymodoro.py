@@ -3,15 +3,19 @@ import threading
 import time
 import datetime
 
+SCREEN_WIDTH = 300
+SCREEN_HEIGHT = 300
+
 ID_COUNT = wx.NewId()
 ID_PAUSE = wx.NewId()
+ID_TEXTBOX = wx.NewId()
 myEVT_COUNT = wx.NewEventType()
 EVT_COUNT = wx.PyEventBinder(myEVT_COUNT, 1)
 
 
 class CountingFrame(wx.Frame):
     def __init__(self, parent):
-        wx.Frame.__init__(self, parent, title="Pymodoro", size=(300,300))
+        wx.Frame.__init__(self, parent, title="Pymodoro", size=(SCREEN_WIDTH, SCREEN_HEIGHT))
 
         self.__DoLayout()
         self.CreateStatusBar()
@@ -21,7 +25,7 @@ class CountingFrame(wx.Frame):
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(CountingPanel(self), 1, wx.ALIGN_CENTER)
         self.SetSizer(sizer)
-        self.SetMinSize((300,300))
+        self.SetMinSize((SCREEN_WIDTH,SCREEN_HEIGHT))
 
 
 class CountingPanel(wx.Panel):
@@ -41,15 +45,18 @@ class CountingPanel(wx.Panel):
 
 
     def __DoLayout(self):
-        self._sizer = wx.GridSizer(3, 1, 30)
+        self._sizer = wx.GridSizer(4, 1, 30)
+        self.taskName = wx.TextCtrl(self, ID_TEXTBOX, "New Task", (SCREEN_WIDTH, SCREEN_HEIGHT))
         self.startButton = wx.Button(self, ID_COUNT, "Start")
         self.pauseButton = wx.Button(self, ID_PAUSE, "Pause")
-        self._sizer.AddMany([(self.startButton, 0, wx.ALIGN_CENTER), (self._counter, 0, wx.ALIGN_CENTER), (self.pauseButton, 0, wx.ALIGN_CENTER)])
+        self._sizer.AddMany([(self.taskName, 0, wx.ALIGN_CENTER), (self.startButton, 0, wx.ALIGN_CENTER), (self._counter, 0, wx.ALIGN_CENTER), (self.pauseButton, 0, wx.ALIGN_CENTER)])
         self.SetSizer(self._sizer)
 
 
     def OnButton(self, evt):
-        worker = CountingThread(self, self.POMODORO_DURATION)
+        now = datetime.datetime.now()
+        in_25_mins = now + datetime.timedelta(minutes=25)
+        worker = CountingThread(self, self.POMODORO_DURATION, now, in_25_mins)
         self._worker = worker
         self._worker.start()
         self.startButton.Disable()
@@ -59,27 +66,25 @@ class CountingPanel(wx.Panel):
         self._worker.paused = not self._worker.paused
         if self._worker.paused:
             self.pauseButton.SetLabel("Resume")
+            self._worker.startTime = datetime.datetime.now()
         else:
             self.pauseButton.SetLabel("Pause")
+            end_timedelta = datetime.datetime.now() - self._worker.startTime
+            self._worker.endTime = self._worker.endTime + datetime.timedelta(seconds=end_timedelta.seconds)
 
 
     def OnCount(self, evt):
         val = evt.GetTimeString()
         self._counter.SetLabel(unicode(val))
         if val == "Pomodoro Finished!":
-            print(self._sizer.GetItem(1).GetPosition())
-            self._sizer.GetItem(1).SetDimension((37, 67), (300,300))
+            label_position = self._sizer.GetItem(2).GetPosition()
+            self._sizer.GetItem(2).SetDimension((label_position[0] - 80, label_position[1]), (SCREEN_WIDTH, 30))
 
 
 class CountEvent(wx.PyCommandEvent):
-    def __init__(self, etype, eid, value=None, time_string="25:00"):
+    def __init__(self, etype, eid, time_string="25:00"):
         wx.PyCommandEvent.__init__(self, etype, eid)
-        self._value = value
         self.time_string = time_string
-
-
-    def GetValue(self):
-        return self._value
 
 
     def GetTimeString(self):
@@ -87,21 +92,23 @@ class CountEvent(wx.PyCommandEvent):
 
 
 class CountingThread(threading.Thread):
-    def __init__(self, parent, value):
+    def __init__(self, parent, start_time, end_time):
         threading.Thread.__init__(self)
         self._parent = parent
-        self._value = value
         self.paused = False
+        self.startTime = start_time
+        self.endTime = end_time
 
 
     def run(self):
-        while self._value > -1:
+        while datetime.datetime.now() < self.endTime:
             if not self.paused:
-                time.sleep(1)
-                mins, secs = divmod(self._value, 60)
+                time.sleep(0.2)
+                td = self.endTime - datetime.datetime.now()
+                hours, remainder = divmod(td.seconds, 3600)
+                mins, secs = divmod(remainder, 60)
                 time_string = '{:02d}:{:02d}'.format(mins, secs)
                 self.time_string = time_string
-                self._value -= 1
                 evt = CountEvent(myEVT_COUNT, -1, self._value, self.time_string)
                 wx.PostEvent(self._parent, evt)
         evt = CountEvent(myEVT_COUNT, -1, self._value, "Pomodoro Finished!")
