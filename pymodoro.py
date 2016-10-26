@@ -2,6 +2,8 @@ import wx
 import threading
 import time
 import datetime
+import sqlite3
+import os
 
 SCREEN_WIDTH = 300
 SCREEN_HEIGHT = 300
@@ -58,10 +60,15 @@ class CountingPanel(wx.Panel):
         in_25_mins = now + datetime.timedelta(seconds=3)
         worker = CountingThread(self, now, in_25_mins)
         self._worker = worker
+        self._startTime = now
         self.startButton.Disable()
+        self.taskName.Disable()
         if self.startButton.GetLabel() == "Restart":
             self._counter.SetLabel("25:00")
             self._adjustCounterPosition('right')
+
+        self._addTaskToDb()
+
         self._worker.start()
 
 
@@ -86,6 +93,8 @@ class CountingPanel(wx.Panel):
     def OnPomodoroFinished(self):
         self._adjustCounterPosition('left')
 
+        self._markTaskCompleted()
+
         popup_message = wx.MessageDialog(self, "25 minutes is up, take a break!", "Pomodoro Finished!", wx.OK)
         popup_message.ShowModal()
         popup_message.Destroy()
@@ -98,6 +107,29 @@ class CountingPanel(wx.Panel):
         label_position = self._counter.GetPosition()
         new_x = label_position[0] - 80 if (left_or_right == 'left') else label_position[0] + 80
         self._sizer.GetItem(2).SetDimension((new_x, label_position[1]), (SCREEN_WIDTH, 30))
+
+
+    def _addTaskToDb(self):
+        conn = sqlite3.connect('pymodoro.db')
+        cursor = conn.cursor()
+        insert_string = 'INSERT INTO pymodoros VALUES (?, 0, ?)'
+        task_name = self.taskName.GetValue()
+        date_now = self._startTime.strftime("%Y-%m-%d %H:%M")
+        cursor.execute(insert_string, (task_name, date_now))
+        conn.commit()
+        conn.close()
+
+
+    def _markTaskCompleted(self):
+        conn = sqlite3.connect('pymodoro.db')
+        cursor = conn.cursor()
+        update_string = 'UPDATE pymodoros SET finished = 1 WHERE task = ? and date = ?'
+        task_name = self.taskName.GetValue()
+        date_now = self._startTime.strftime("%Y-%m-%d %H:%M")
+        cursor.execute(update_string, (task_name, date_now))
+        conn.commit()
+        conn.close()
+
 
 
 class CountEvent(wx.PyCommandEvent):
@@ -134,7 +166,18 @@ class CountingThread(threading.Thread):
         wx.PostEvent(self._parent, evt)
 
 
+def _firstTimeDB():
+    conn = sqlite3.connect('pymodoro.db')
+    cursor = conn.cursor()
+    create_tables =  'CREATE TABLE pymodoros (task text, finished integer, date text)'
+    conn.execute(create_tables)
+    conn.commit()
+    conn.close()
+
 if __name__ == '__main__':
+    if not os.path.isfile('pymodoro.db'):
+        _firstTimeDB()
+
     APP = wx.App(False)
     FRAME = CountingFrame(None)
     FRAME.Show()
