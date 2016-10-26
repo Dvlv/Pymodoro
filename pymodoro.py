@@ -11,6 +11,7 @@ ID_PAUSE = wx.NewId()
 ID_TEXTBOX = wx.NewId()
 myEVT_COUNT = wx.NewEventType()
 EVT_COUNT = wx.PyEventBinder(myEVT_COUNT, 1)
+POMODORO_FINISHED_MESSAGE = "Pomodoro Finished!"
 
 
 class CountingFrame(wx.Frame):
@@ -31,8 +32,6 @@ class CountingFrame(wx.Frame):
 class CountingPanel(wx.Panel):
     def __init__(self, parent):
         wx.Panel.__init__(self, parent)
-
-        self.POMODORO_DURATION = 2
 
         self._counter = wx.StaticText(self, label="25:00")
         self._counter.SetFont(wx.Font(16, wx.MODERN, wx.NORMAL, wx.NORMAL))
@@ -55,11 +54,15 @@ class CountingPanel(wx.Panel):
 
     def OnButton(self, evt):
         now = datetime.datetime.now()
-        in_25_mins = now + datetime.timedelta(minutes=25)
-        worker = CountingThread(self, self.POMODORO_DURATION, now, in_25_mins)
+        #in_25_mins = now + datetime.timedelta(minutes=25)
+        in_25_mins = now + datetime.timedelta(seconds=3)
+        worker = CountingThread(self, now, in_25_mins)
         self._worker = worker
-        self._worker.start()
         self.startButton.Disable()
+        if self.startButton.GetLabel() == "Restart":
+            self._counter.SetLabel("25:00")
+            self._adjustCounterPosition('right')
+        self._worker.start()
 
 
     def OnPauseButton(self, evt):
@@ -76,9 +79,25 @@ class CountingPanel(wx.Panel):
     def OnCount(self, evt):
         val = evt.GetTimeString()
         self._counter.SetLabel(unicode(val))
-        if val == "Pomodoro Finished!":
-            label_position = self._sizer.GetItem(2).GetPosition()
-            self._sizer.GetItem(2).SetDimension((label_position[0] - 80, label_position[1]), (SCREEN_WIDTH, 30))
+        if val == POMODORO_FINISHED_MESSAGE:
+           self.OnPomodoroFinished()
+
+
+    def OnPomodoroFinished(self):
+        self._adjustCounterPosition('left')
+
+        popup_message = wx.MessageDialog(self, "25 minutes is up, take a break!", "Pomodoro Finished!", wx.OK)
+        popup_message.ShowModal()
+        popup_message.Destroy()
+
+        self.startButton.SetLabel("Restart")
+        self.startButton.Enable()
+
+
+    def _adjustCounterPosition(self, left_or_right):
+        label_position = self._counter.GetPosition()
+        new_x = label_position[0] - 80 if (left_or_right == 'left') else label_position[0] + 80
+        self._sizer.GetItem(2).SetDimension((new_x, label_position[1]), (SCREEN_WIDTH, 30))
 
 
 class CountEvent(wx.PyCommandEvent):
@@ -109,9 +128,9 @@ class CountingThread(threading.Thread):
                 mins, secs = divmod(remainder, 60)
                 time_string = '{:02d}:{:02d}'.format(mins, secs)
                 self.time_string = time_string
-                evt = CountEvent(myEVT_COUNT, -1, self._value, self.time_string)
+                evt = CountEvent(myEVT_COUNT, -1, self.time_string)
                 wx.PostEvent(self._parent, evt)
-        evt = CountEvent(myEVT_COUNT, -1, self._value, "Pomodoro Finished!")
+        evt = CountEvent(myEVT_COUNT, -1, POMODORO_FINISHED_MESSAGE)
         wx.PostEvent(self._parent, evt)
 
 
