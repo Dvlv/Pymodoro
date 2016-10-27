@@ -11,6 +11,8 @@ SCREEN_HEIGHT = 300
 ID_COUNT = wx.NewId()
 ID_PAUSE = wx.NewId()
 ID_TEXTBOX = wx.NewId()
+ID_LOGBUTTON = wx.NewId()
+
 myEVT_COUNT = wx.NewEventType()
 EVT_COUNT = wx.PyEventBinder(myEVT_COUNT, 1)
 POMODORO_FINISHED_MESSAGE = "Pomodoro Finished!"
@@ -29,6 +31,19 @@ class CountingFrame(wx.Frame):
         sizer.Add(CountingPanel(self), 1, wx.ALIGN_CENTER)
         self.SetSizer(sizer)
         self.SetMinSize((SCREEN_WIDTH,SCREEN_HEIGHT))
+
+        menuBar = wx.MenuBar()
+        logButton = wx.Menu()
+        logItem = logButton.Append(ID_LOGBUTTON, 'View Log', 'View previous pomodoross')
+        menuBar.Append(logButton, 'Log')
+        self.SetMenuBar(menuBar)
+
+        self.Bind(wx.EVT_MENU, self.viewLog, logItem)
+
+
+    def viewLog(self, _):
+        log_frame = LogFrame()
+        log_frame.Show()
 
 
 class CountingPanel(wx.Panel):
@@ -101,6 +116,7 @@ class CountingPanel(wx.Panel):
 
         self.startButton.SetLabel("Restart")
         self.startButton.Enable()
+        self.taskName.Enable()
 
 
     def _adjustCounterPosition(self, left_or_right):
@@ -166,11 +182,92 @@ class CountingThread(threading.Thread):
         wx.PostEvent(self._parent, evt)
 
 
+class LogFrame(wx.Frame):
+    def __init__(self):
+        wx.Frame.__init__(self, None, title="Previous Pomodoros", size=(SCREEN_WIDTH, SCREEN_HEIGHT))
+
+        self._panel = wx.Panel(self)
+        self._notebook = wx.Notebook(self._panel)
+
+        self.__DoLayout()
+        self.CreateStatusBar()
+
+
+    def __DoLayout(self):
+        conn = sqlite3.connect('pymodoro.db')
+        cursor = conn.cursor()
+        date_select = 'SELECT DISTINCT date FROM pymodoros ORDER BY date DESC'
+        cursor.execute(date_select)
+        dates = cursor.fetchall()
+        conn.close()
+
+        for index, date in enumerate(dates):
+            dates[index] = date[0].split(" ")[0]
+
+        dates = set(dates)
+
+        for date in dates:
+            page = LogPanel(self._notebook, date)
+            self._notebook.AddPage(page, date)
+
+        sizer = wx.BoxSizer()
+        sizer.Add(self._notebook, 1, wx.EXPAND)
+        self._panel.SetSizer(sizer)
+
+
+
+            #sizer = wx.BoxSizer(wx.HORIZONTAL)
+            #sizer.Add(LogPanel(self), 1, wx.ALIGN_CENTER)
+            #self.SetSizer(sizer)
+            #self.SetMinSize((SCREEN_WIDTH,SCREEN_HEIGHT))
+
+
+class LogPanel(wx.Panel):
+    def __init__(self, parent, date):
+        wx.Panel.__init__(self, parent)
+
+        conn = sqlite3.connect('pymodoro.db')
+        cursor = conn.cursor()
+
+        get_previous = 'SELECT * FROM pymodoros WHERE date LIKE ?'
+        cursor.execute(get_previous, (unicode(date + '%'),))
+        self._previous_tasks = cursor.fetchall()
+        conn.close()
+
+        self.__DoLayout()
+
+
+    def __DoLayout(self):
+        self._sizer = wx.GridSizer(len(self._previous_tasks) + 1, 3, 5)
+
+        taskNameHeader = wx.StaticText(self, -1, "Task Name")
+        dateHeader = wx.StaticText(self, -1, "Date")
+        completedHeader = wx.StaticText(self, -1, "Completed?")
+
+        self._sizer.AddMany([(taskNameHeader, 0, wx.ALIGN_CENTER), (dateHeader, 0, wx.ALIGN_CENTER), (completedHeader, 0, wx.ALIGN_CENTER)])
+
+        for task, finished, date in self._previous_tasks:
+            taskLabel = wx.StaticText(self, -1, task)
+            date_and_time = date.split(' ')
+            backwards_date = date_and_time[0]
+            time = date_and_time[1]
+            date_parts = backwards_date.split('-')
+            date_nice = '/'.join([date_parts[2], date_parts[1], date_parts[0]])
+            date_complete = ' '.join([date_nice, time])
+            dateLabel = wx.StaticText(self, -1, date_nice)
+            finished_text = 'Yes' if finished else 'No'
+            finishedLabel = wx.StaticText(self, -1, finished_text)
+            self._sizer.AddMany([(taskLabel, 0, wx.ALIGN_CENTER), (dateLabel, 0, wx.ALIGN_CENTER), (finishedLabel, 0, wx.ALIGN_CENTER)])
+
+        self.SetSizer(self._sizer)
+
+
+
 def _firstTimeDB():
     conn = sqlite3.connect('pymodoro.db')
     cursor = conn.cursor()
     create_tables =  'CREATE TABLE pymodoros (task text, finished integer, date text)'
-    conn.execute(create_tables)
+    cursor.execute(create_tables)
     conn.commit()
     conn.close()
 
