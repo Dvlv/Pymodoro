@@ -309,8 +309,6 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
         frame.Show()
 
 
-
-
 class LogDeleteButton(wx.Button):
     def __init__(self, parent, id, text, task_name, task_date):
         wx.Button.__init__(self, parent, id, text)
