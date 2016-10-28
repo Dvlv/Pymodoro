@@ -1,4 +1,5 @@
 import wx
+import wx.lib.scrolledpanel
 import threading
 import time
 import datetime
@@ -56,7 +57,7 @@ class CountingPanel(wx.Panel):
         self.__DoLayout()
 
         self.Bind(wx.EVT_BUTTON, self.OnPauseButton, self.pauseButton)
-        self.Bind(wx.EVT_BUTTON, self.OnButton, self.startButton)
+        self.Bind(wx.EVT_BUTTON, self.OnStartButton, self.startButton)
         self.Bind(EVT_COUNT, self.OnCount)
 
 
@@ -69,22 +70,33 @@ class CountingPanel(wx.Panel):
         self.SetSizer(self._sizer)
 
 
-    def OnButton(self, evt):
-        now = datetime.datetime.now()
-        #in_25_mins = now + datetime.timedelta(minutes=25)
-        in_25_mins = now + datetime.timedelta(seconds=3)
-        worker = CountingThread(self, now, in_25_mins)
-        self._worker = worker
-        self._startTime = now
-        self.startButton.Disable()
-        self.taskName.Disable()
-        if self.startButton.GetLabel() == "Restart":
+    def OnStartButton(self, evt):
+        if not hasattr(self, '_worker'):
+            now = datetime.datetime.now()
+            #in_25_mins = now + datetime.timedelta(minutes=25)
+            in_25_mins = now + datetime.timedelta(seconds=8)
+            worker = CountingThread(self, now, in_25_mins)
+            self._worker = worker
+            self._startTime = now
+
+        if self.startButton.GetLabel() == "Finish":
+            self.startButton.SetLabel('Restart')
+            self._worker.endNow = True
+            self._markTaskCompleted()
+            self.taskName.Enable()
+
+        elif self.startButton.GetLabel() == "Restart":
             self._counter.SetLabel("25:00")
             self._adjustCounterPosition('right')
+            self._addTaskToDb()
+            self._worker.start()
 
-        self._addTaskToDb()
+        else:
+            self.taskName.Disable()
+            self.startButton.SetLabel('Finish')
+            self._addTaskToDb()
+            self._worker.start()
 
-        self._worker.start()
 
 
     def OnPauseButton(self, evt):
@@ -162,31 +174,50 @@ class CountingThread(threading.Thread):
     def __init__(self, parent, start_time, end_time):
         threading.Thread.__init__(self)
         self._parent = parent
+        self.endNow = False
         self.paused = False
         self.startTime = start_time
         self.endTime = end_time
 
 
     def run(self):
-        while datetime.datetime.now() < self.endTime:
-            if not self.paused:
-                time.sleep(0.2)
-                td = self.endTime - datetime.datetime.now()
-                hours, remainder = divmod(td.seconds, 3600)
-                mins, secs = divmod(remainder, 60)
-                time_string = '{:02d}:{:02d}'.format(mins, secs)
-                self.time_string = time_string
-                evt = CountEvent(myEVT_COUNT, -1, self.time_string)
+        while True:
+            if not self.paused and not self.endNow:
+                self.main_loop()
+                if datetime.datetime.now() >= self.endTime:
+                    evt = CountEvent(myEVT_COUNT, -1, POMODORO_FINISHED_MESSAGE)
+                    wx.PostEvent(self._parent, evt)
+                    break
+            elif self.endNow:
+                evt = CountEvent(myEVT_COUNT, -1, POMODORO_FINISHED_MESSAGE)
                 wx.PostEvent(self._parent, evt)
-        evt = CountEvent(myEVT_COUNT, -1, POMODORO_FINISHED_MESSAGE)
-        wx.PostEvent(self._parent, evt)
+                break
+            else:
+                continue
+
+
+    def main_loop(self):
+        while datetime.datetime.now() < self.endTime:
+            time.sleep(0.2)
+            td = self.endTime - datetime.datetime.now()
+            hours, remainder = divmod(td.seconds, 3600)
+            mins, secs = divmod(remainder, 60)
+            time_string = '{:02d}:{:02d}'.format(mins, secs)
+            self.time_string = time_string
+            evt = CountEvent(myEVT_COUNT, -1, self.time_string)
+            wx.PostEvent(self._parent, evt)
+            if self.paused or self.endNow:
+                print('breaking')
+                break
+
 
 
 class LogFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, title="Previous Pomodoros", size=(SCREEN_WIDTH, SCREEN_HEIGHT))
+        wx.Frame.__init__(self, None, title="Previous Pomodoros")
 
-        self._panel = wx.Panel(self)
+        self._panel = wx.lib.scrolledpanel.ScrolledPanel(self)
+        self._panel.SetupScrolling()
         self._notebook = wx.Notebook(self._panel)
 
         self.__DoLayout()
@@ -266,7 +297,7 @@ class LogPanel(wx.Panel):
 def _firstTimeDB():
     conn = sqlite3.connect('pymodoro.db')
     cursor = conn.cursor()
-    create_tables =  'CREATE TABLE pymodoros (task text, finished integer, date text)'
+    create_tables = 'CREATE TABLE pymodoros (task text, finished integer, date text)'
     cursor.execute(create_tables)
     conn.commit()
     conn.close()
