@@ -138,25 +138,17 @@ class CountingPanel(wx.Panel):
 
 
     def _addTaskToDb(self):
-        conn = sqlite3.connect('pymodoro.db')
-        cursor = conn.cursor()
         insert_string = 'INSERT INTO pymodoros VALUES (?, 0, ?)'
         task_name = self.taskName.GetValue()
         date_now = self._startTime.strftime("%Y-%m-%d %H:%M")
-        cursor.execute(insert_string, (task_name, date_now))
-        conn.commit()
-        conn.close()
+        _runQuery(insert_string, (task_name, date_now))
 
 
     def _markTaskCompleted(self):
-        conn = sqlite3.connect('pymodoro.db')
-        cursor = conn.cursor()
         update_string = 'UPDATE pymodoros SET finished = 1 WHERE task = ? and date = ?'
         task_name = self.taskName.GetValue()
         date_now = self._startTime.strftime("%Y-%m-%d %H:%M")
-        cursor.execute(update_string, (task_name, date_now))
-        conn.commit()
-        conn.close()
+        _runQuery(update_string, (task_name, date_now))
 
 
 
@@ -216,8 +208,7 @@ class LogFrame(wx.Frame):
     def __init__(self):
         wx.Frame.__init__(self, None, title="Previous Pomodoros")
 
-        self._panel = wx.lib.scrolledpanel.ScrolledPanel(self)
-        self._panel.SetupScrolling()
+        self._panel = wx.Panel(self)
         self._notebook = wx.Notebook(self._panel)
 
         self.__DoLayout()
@@ -225,12 +216,8 @@ class LogFrame(wx.Frame):
 
 
     def __DoLayout(self):
-        conn = sqlite3.connect('pymodoro.db')
-        cursor = conn.cursor()
         date_select = 'SELECT DISTINCT date FROM pymodoros ORDER BY date DESC'
-        cursor.execute(date_select)
-        dates = cursor.fetchall()
-        conn.close()
+        dates = _runQuery(date_select, None, True)
 
         for index, date in enumerate(dates):
             dates[index] = date[0].split(" ")[0]
@@ -253,17 +240,14 @@ class LogFrame(wx.Frame):
             #self.SetMinSize((SCREEN_WIDTH,SCREEN_HEIGHT))
 
 
-class LogPanel(wx.Panel):
+class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def __init__(self, parent, date):
-        wx.Panel.__init__(self, parent)
-
-        conn = sqlite3.connect('pymodoro.db')
-        cursor = conn.cursor()
+        wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent)
+        self.SetupScrolling()
 
         get_previous = 'SELECT * FROM pymodoros WHERE date LIKE ?'
-        cursor.execute(get_previous, (unicode(date + '%'),))
-        self._previous_tasks = cursor.fetchall()
-        conn.close()
+        data = (unicode(date + '%'),)
+        self._previous_tasks = _runQuery(get_previous, data, True)
 
         self.__DoLayout()
 
@@ -271,9 +255,15 @@ class LogPanel(wx.Panel):
     def __DoLayout(self):
         self._sizer = wx.GridSizer(len(self._previous_tasks) + 1, 3, 5)
 
+        boldFont = wx.Font(12, wx.MODERN, wx.NORMAL, wx.BOLD)
         taskNameHeader = wx.StaticText(self, -1, "Task Name")
         dateHeader = wx.StaticText(self, -1, "Date")
         completedHeader = wx.StaticText(self, -1, "Completed?")
+
+        taskNameHeader.SetFont(boldFont)
+        dateHeader.SetFont(boldFont)
+        completedHeader.SetFont(boldFont)
+
 
         self._sizer.AddMany([(taskNameHeader, 0, wx.ALIGN_CENTER), (dateHeader, 0, wx.ALIGN_CENTER), (completedHeader, 0, wx.ALIGN_CENTER)])
 
@@ -293,14 +283,25 @@ class LogPanel(wx.Panel):
         self.SetSizer(self._sizer)
 
 
-
-def _firstTimeDB():
+def _runQuery(sql, data=None, receive=False):
     conn = sqlite3.connect('pymodoro.db')
     cursor = conn.cursor()
-    create_tables = 'CREATE TABLE pymodoros (task text, finished integer, date text)'
-    cursor.execute(create_tables)
-    conn.commit()
+    if data:
+        cursor.execute(sql, data)
+    else:
+        cursor.execute(sql)
+
+    if receive:
+        return cursor.fetchall()
+    else:
+        conn.commit()
+
     conn.close()
+
+
+def _firstTimeDB():
+    create_tables = 'CREATE TABLE pymodoros (task text, finished integer, date text)'
+    _runQuery(create_tables)
 
 if __name__ == '__main__':
     if not os.path.isfile('pymodoro.db'):
