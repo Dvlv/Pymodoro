@@ -5,6 +5,7 @@ import time
 import datetime
 import sqlite3
 import os
+import functools
 
 SCREEN_WIDTH = 300
 SCREEN_HEIGHT = 300
@@ -71,13 +72,17 @@ class CountingPanel(wx.Panel):
 
 
     def OnStartButton(self, evt):
-        if not hasattr(self, '_worker'):
+
+        def startUp(self):
             now = datetime.datetime.now()
             #in_25_mins = now + datetime.timedelta(minutes=25)
             in_25_mins = now + datetime.timedelta(seconds=8)
             worker = CountingThread(self, now, in_25_mins)
             self._worker = worker
             self._startTime = now
+
+        if not hasattr(self, '_worker'):
+            startUp(self)
 
         if self.startButton.GetLabel() == "Finish":
             self.startButton.SetLabel('Restart')
@@ -86,6 +91,9 @@ class CountingPanel(wx.Panel):
             self.taskName.Enable()
 
         elif self.startButton.GetLabel() == "Restart":
+            startUp(self)
+            self.taskName.Disable()
+            self.startButton.SetLabel('Finish')
             self._counter.SetLabel("25:00")
             self._adjustCounterPosition('right')
             self._addTaskToDb()
@@ -190,7 +198,7 @@ class CountingThread(threading.Thread):
 
     def main_loop(self):
         while datetime.datetime.now() < self.endTime:
-            time.sleep(0.2)
+            time.sleep(0.1)
             td = self.endTime - datetime.datetime.now()
             hours, remainder = divmod(td.seconds, 3600)
             mins, secs = divmod(remainder, 60)
@@ -199,7 +207,6 @@ class CountingThread(threading.Thread):
             evt = CountEvent(myEVT_COUNT, -1, self.time_string)
             wx.PostEvent(self._parent, evt)
             if self.paused or self.endNow:
-                print('breaking')
                 break
 
 
@@ -233,16 +240,10 @@ class LogFrame(wx.Frame):
         self._panel.SetSizer(sizer)
 
 
-
-            #sizer = wx.BoxSizer(wx.HORIZONTAL)
-            #sizer.Add(LogPanel(self), 1, wx.ALIGN_CENTER)
-            #self.SetSizer(sizer)
-            #self.SetMinSize((SCREEN_WIDTH,SCREEN_HEIGHT))
-
-
 class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
     def __init__(self, parent, date):
         wx.lib.scrolledpanel.ScrolledPanel.__init__(self, parent)
+        self.parent = parent
         self.SetupScrolling()
 
         get_previous = 'SELECT * FROM pymodoros WHERE date LIKE ?'
@@ -253,22 +254,25 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
 
     def __DoLayout(self):
-        self._sizer = wx.GridSizer(len(self._previous_tasks) + 1, 3, 5)
+        self._sizer = wx.GridSizer(len(self._previous_tasks) + 1, 4, 5)
 
         boldFont = wx.Font(12, wx.MODERN, wx.NORMAL, wx.BOLD)
+
         taskNameHeader = wx.StaticText(self, -1, "Task Name")
         dateHeader = wx.StaticText(self, -1, "Date")
         completedHeader = wx.StaticText(self, -1, "Completed?")
+        deleteHeader = wx.StaticText(self, -1, "Delete")
+
 
         taskNameHeader.SetFont(boldFont)
         dateHeader.SetFont(boldFont)
         completedHeader.SetFont(boldFont)
 
-
-        self._sizer.AddMany([(taskNameHeader, 0, wx.ALIGN_CENTER), (dateHeader, 0, wx.ALIGN_CENTER), (completedHeader, 0, wx.ALIGN_CENTER)])
+        self._sizer.AddMany([(taskNameHeader, 0, wx.ALIGN_CENTER), (dateHeader, 0, wx.ALIGN_CENTER), (completedHeader, 0, wx.ALIGN_CENTER), (deleteHeader, 0, wx.ALIGN_CENTER)])
 
         for task, finished, date in self._previous_tasks:
             taskLabel = wx.StaticText(self, -1, task)
+
             date_and_time = date.split(' ')
             backwards_date = date_and_time[0]
             time = date_and_time[1]
@@ -276,11 +280,42 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
             date_nice = '/'.join([date_parts[2], date_parts[1], date_parts[0]])
             date_complete = ' '.join([date_nice, time])
             dateLabel = wx.StaticText(self, -1, date_nice)
+
             finished_text = 'Yes' if finished else 'No'
             finishedLabel = wx.StaticText(self, -1, finished_text)
-            self._sizer.AddMany([(taskLabel, 0, wx.ALIGN_CENTER), (dateLabel, 0, wx.ALIGN_CENTER), (finishedLabel, 0, wx.ALIGN_CENTER)])
+
+            deleteButton = LogDeleteButton(self, wx.NewId(), "Delete", task, date)
+
+            self._sizer.AddMany([(taskLabel, 0, wx.ALIGN_CENTER), (dateLabel, 0, wx.ALIGN_CENTER), (finishedLabel, 0, wx.ALIGN_CENTER), (deleteButton, 0, wx.ALIGN_CENTER)])
+
+            self.Bind(wx.EVT_BUTTON, functools.partial(self.deleteEntry, task=deleteButton.taskName, date=deleteButton.taskDate), deleteButton)
 
         self.SetSizer(self._sizer)
+
+
+    def deleteEntry(self, evt, task, date):
+        delete_sql = 'DELETE FROM pymodoros WHERE task = ? and date = ?'
+        data = (task, date)
+        _runQuery(delete_sql, data)
+
+        popup_message = wx.MessageDialog(self, "Task was deleted!", "Task Deleted", wx.OK)
+        popup_message.ShowModal()
+        popup_message.Destroy()
+
+        frame = self.GetParent().GetParent().GetParent()
+        frame.Close()
+
+        frame = LogFrame()
+        frame.Show()
+
+
+
+
+class LogDeleteButton(wx.Button):
+    def __init__(self, parent, id, text, task_name, task_date):
+        wx.Button.__init__(self, parent, id, text)
+        self.taskName = task_name
+        self.taskDate = task_date
 
 
 def _runQuery(sql, data=None, receive=False):
