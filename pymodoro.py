@@ -213,7 +213,7 @@ class CountingThread(threading.Thread):
 
 class LogFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, title="Previous Pomodoros")
+        wx.Frame.__init__(self, None, title="Previous Pomodoros", size=(500, 325))
 
         self._panel = wx.Panel(self)
         self._notebook = wx.Notebook(self._panel)
@@ -267,6 +267,7 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
         taskNameHeader.SetFont(boldFont)
         dateHeader.SetFont(boldFont)
         completedHeader.SetFont(boldFont)
+        deleteHeader.SetFont(boldFont)
 
         self._sizer.AddMany([(taskNameHeader, 0, wx.ALIGN_CENTER), (dateHeader, 0, wx.ALIGN_CENTER), (completedHeader, 0, wx.ALIGN_CENTER), (deleteHeader, 0, wx.ALIGN_CENTER)])
 
