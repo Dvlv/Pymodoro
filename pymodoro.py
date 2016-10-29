@@ -229,11 +229,12 @@ class LogFrame(wx.Frame):
         for index, date in enumerate(dates):
             dates[index] = date[0].split(" ")[0]
 
-        dates = set(dates)
+        dates = sorted(list(set(dates)))[::-1]
 
         for date in dates:
+            nice_date = _makeNiceDate(date)
             page = LogPanel(self._notebook, date)
-            self._notebook.AddPage(page, date)
+            self._notebook.AddPage(page, nice_date)
 
         sizer = wx.BoxSizer()
         sizer.Add(self._notebook, 1, wx.EXPAND)
@@ -259,7 +260,7 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
         boldFont = wx.Font(12, wx.MODERN, wx.NORMAL, wx.BOLD)
 
         taskNameHeader = wx.StaticText(self, -1, "Task Name")
-        dateHeader = wx.StaticText(self, -1, "Date")
+        dateHeader = wx.StaticText(self, -1, "Date/Time")
         completedHeader = wx.StaticText(self, -1, "Completed?")
         deleteHeader = wx.StaticText(self, -1, "Delete")
 
@@ -274,12 +275,8 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
         for task, finished, date in self._previous_tasks:
             taskLabel = wx.StaticText(self, -1, task)
 
-            date_and_time = date.split(' ')
-            backwards_date = date_and_time[0]
-            time = date_and_time[1]
-            date_parts = backwards_date.split('-')
-            date_nice = '/'.join([date_parts[2], date_parts[1], date_parts[0]])
-            date_complete = ' '.join([date_nice, time])
+            date_nice = _makeNiceDate(date, True)
+
             dateLabel = wx.StaticText(self, -1, date_nice)
 
             finished_text = 'Yes' if finished else 'No'
@@ -299,7 +296,7 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
         data = (task, date)
         _runQuery(delete_sql, data)
 
-        popup_message = wx.MessageDialog(self, "Task was deleted!", "Task Deleted", wx.OK)
+        popup_message = wx.MessageDialog(self, "{} was deleted!".format(task), "Task Deleted", wx.OK)
         popup_message.ShowModal()
         popup_message.Destroy()
 
@@ -315,6 +312,20 @@ class LogDeleteButton(wx.Button):
         wx.Button.__init__(self, parent, id, text)
         self.taskName = task_name
         self.taskDate = task_date
+
+
+def _makeNiceDate(date, time=False):
+    date_and_time = date.split(' ')
+    backwards_date = date_and_time[0]
+    date_parts = backwards_date.split('-')
+    date_nice = '/'.join([date_parts[2], date_parts[1], date_parts[0]])
+
+    if time:
+        time = date_and_time[1]
+        date_complete = ' '.join([date_nice, time])
+        return date_complete
+    else:
+        return date_nice
 
 
 def _runQuery(sql, data=None, receive=False):
