@@ -284,20 +284,20 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
             finished_button_text = "Mark Unfinished" if finished else "Mark Finished"
             finishedLabel = wx.StaticText(self, -1, finished_text)
 
-            deleteButton = LogDeleteButton(self, wx.NewId(), "Delete", task, date)
+            deleteButton = LogDeleteButton(self, wx.NewId(), "Delete", task, date, finished)
             markCompletedButton = LogCompletedButton(self, wx.NewId(), finished_button_text, task, date, finished)
 
             self._sizer.AddMany([(taskLabel, 0, wx.ALIGN_CENTER), (dateLabel, 0, wx.ALIGN_CENTER), (finishedLabel, 0, wx.ALIGN_CENTER), (deleteButton, 0, wx.ALIGN_CENTER), (markCompletedButton, 0, wx.ALIGN_CENTER)])
 
-            self.Bind(wx.EVT_BUTTON, functools.partial(self.deleteEntry, task=deleteButton.taskName, date=deleteButton.taskDate), deleteButton)
+            self.Bind(wx.EVT_BUTTON, functools.partial(self.deleteEntry, task=deleteButton.taskName, date=deleteButton.taskDate, finished=deleteButton.completed), deleteButton)
             self.Bind(wx.EVT_BUTTON, functools.partial(self.completeEntry, task=markCompletedButton.taskName, date=markCompletedButton.taskDate, finished=markCompletedButton.completed), markCompletedButton)
 
         self.SetSizer(self._sizer)
 
 
-    def deleteEntry(self, evt, task, date):
-        delete_sql = 'DELETE FROM pymodoros WHERE task = ? and date = ?'
-        data = (task, date)
+    def deleteEntry(self, evt, task, date, finished):
+        delete_sql = 'DELETE FROM pymodoros WHERE task = ? and date = ? and finished = ?'
+        data = (task, date, finished)
         _runQuery(delete_sql, data)
 
         popup_message = wx.MessageDialog(self, "{} was deleted!".format(task), "Task Deleted", wx.OK)
@@ -335,10 +335,11 @@ class LogPanel(wx.lib.scrolledpanel.ScrolledPanel):
 
 
 class LogDeleteButton(wx.Button):
-    def __init__(self, parent, id, text, task_name, task_date):
+    def __init__(self, parent, id, text, task_name, task_date, completed):
         wx.Button.__init__(self, parent, id, text)
         self.taskName = task_name
         self.taskDate = task_date
+        self.completed = completed
 
 
 class LogCompletedButton(wx.Button):
