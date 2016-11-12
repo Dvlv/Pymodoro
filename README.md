@@ -1,2 +1,2 @@
-# pymodoro
+# Pymodoro
 ###A wxWidgets Pomodoro tracker
