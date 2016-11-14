@@ -78,8 +78,8 @@ class CountingPanel(wx.Panel):
 
         def startUp(self):
             now = datetime.datetime.now()
-            #in_25_mins = now + datetime.timedelta(minutes=25)
-            in_25_mins = now + datetime.timedelta(seconds=8)
+            in_25_mins = now + datetime.timedelta(minutes=25)
+            #in_25_mins = now + datetime.timedelta(seconds=8) #for debugging
             worker = CountingThread(self, now, in_25_mins)
             self._worker = worker
             self._startTime = now
