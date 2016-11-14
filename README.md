@@ -19,6 +19,7 @@ Pymodoro comes with a log in the form of a sqlite database. This will be created
 
 ####Viewing the log
 `Log` -> `View Log` or `Ctrl+L`
+
 The log is in a tabbed window, with a tab per day.
 
 ####What's in the log
