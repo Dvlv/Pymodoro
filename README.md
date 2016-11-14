@@ -6,6 +6,7 @@ wxWidgets (aka wxPython)
 
 ##How to use
 Run with `python pymodoro.py`
+
 N.B. Pymodoro is built with wxWidgets, so requires python2
 
 1. Enter a task name in the input box
