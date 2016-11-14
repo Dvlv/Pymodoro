@@ -33,3 +33,4 @@ The log holds:
 
 ##Todo
 - Manually set tab frequency in the log (week view, month view etc.)
+- Alternative date format e.g. mm/dd/yyyy
