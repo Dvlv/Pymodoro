@@ -1,10 +1,10 @@
 # Pymodoro
-###A simple wxWidgets Pomodoro tracker
+### A simple wxWidgets Pomodoro tracker
 
-##Dependencies
+## Dependencies
 wxWidgets (aka wxPython)
 
-##How to use
+## How to use
 Run with `python pymodoro.py`
 
 N.B. Pymodoro is built with wxWidgets, so requires python2
@@ -14,15 +14,15 @@ N.B. Pymodoro is built with wxWidgets, so requires python2
 3. Use 'Pause' if you _need_ to pause working (Ideally pomodoros are unbroken concentration, but life happens)
 4. Use 'Stop' to finish a task early
 
-##Log
+## Log
 Pymodoro comes with a log in the form of a sqlite database. This will be created in the same directory as pymodoro.py upon first run
 
-####Viewing the log
+#### Viewing the log
 `Log` -> `View Log` or `Ctrl+L`
 
 The log is in a tabbed window, with a tab per day.
 
-####What's in the log
+#### What's in the log
 The log holds:
 - The name of each task
 - The date/time it was started
@@ -33,6 +33,6 @@ The log holds:
 
 
 
-##Todo
+## Todo
 - Manually set tab frequency in the log (week view, month view etc.)
 - Alternative date format e.g. mm/dd/yyyy
